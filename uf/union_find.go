@@ -1,4 +1,4 @@
-/*Package unionfind efficiently support the following functions on network of nodes:
+/*Package uf efficiently support the following functions on network of nodes:
 - union: connect two graph objects.
 - find: determine if there is a path between two graph objects.
 
@@ -7,12 +7,17 @@ Connections:
 - symmetric
 - transitive
 */
-package unionfind
+package uf
 
 // UF the union finder interface
 type UF interface {
 	Union(p, q int)
 	Connected(p, q int) bool
+}
+
+// Finder searches for elements in the graph.
+type Finder interface {
+	Find(int, bool) int
 }
 
 func initIDs(n int) []int {
@@ -30,15 +35,11 @@ type QuickFind struct {
 }
 
 // NewQuickFind using an array model p and q being connected if they have the same id.
-func NewQuickFind(n int) UF {
+func NewQuickFind(n int) *QuickFind {
 	return &QuickFind{
 		ids: initIDs(n),
 		len: n,
 	}
-}
-
-func (qf *QuickFind) String() string {
-	return "QuickFind"
 }
 
 // Union connect two nodes.
@@ -62,14 +63,10 @@ type QuickUnion struct {
 }
 
 // NewQuickUnion using an array model p and q being connected if they have the same id.
-func NewQuickUnion(n int) UF {
+func NewQuickUnion(n int) *QuickUnion {
 	return &QuickUnion{
 		ids: initIDs(n),
 	}
-}
-
-func (qu *QuickUnion) String() string {
-	return "QuickUnion"
 }
 
 func (qu *QuickUnion) root(p int) int {
@@ -89,18 +86,25 @@ func (qu *QuickUnion) Connected(p, q int) bool {
 	return qu.root(p) == qu.root(q)
 }
 
+// Node a container to use rather than the typical union-find int id.
+// This lets us store information at each site.
+type Node struct {
+	Root  int
+	Value interface{}
+}
+
 // WeightedQuickUnion optimizes the union operation.
 type WeightedQuickUnion struct {
-	ids []int
+	ids []*Node
 	sz  []int
 }
 
 // NewWeightedQuickUnion using an array model p and q being connected if they have the same id.
-func NewWeightedQuickUnion(n int) UF {
-	ids := make([]int, n)
+func NewWeightedQuickUnion(n int) *WeightedQuickUnion {
+	ids := make([]*Node, n)
 	sz := make([]int, n)
 	for i := 0; i < n; i++ {
-		ids[i] = i
+		ids[i] = &Node{Root: i}
 		sz[i] = 1
 	}
 
@@ -110,37 +114,41 @@ func NewWeightedQuickUnion(n int) UF {
 	}
 }
 
-func (w *WeightedQuickUnion) String() string {
-	return "WeightedQuickUnion"
-}
-
-func (w *WeightedQuickUnion) root(p int) int {
-	for p != w.ids[p] {
+func (w *WeightedQuickUnion) root(p int) (n *Node) {
+	//TODO make this cleaner
+	n = w.ids[p]
+	for p != w.ids[p].Root {
 		// path compression
-		w.ids[p] = w.ids[w.ids[p]]
-		p = w.ids[p]
+		w.ids[p] = w.ids[w.ids[p].Root]
+		p = w.ids[p].Root
+		n = w.ids[p]
 	}
-	return p
+	return
 }
 
 // Union connect two nodes.
 func (w *WeightedQuickUnion) Union(p, q int) {
-	i := w.root(p)
-	j := w.root(q)
+	i := w.root(p).Root
+	j := w.root(q).Root
 	if i == j {
 		return
 	}
 
 	if w.sz[i] < w.sz[j] {
-		w.ids[i] = j
+		w.ids[i] = w.ids[j]
 		w.sz[j] += w.sz[i]
 		return
 	}
-	w.ids[j] = i
+	w.ids[j] = w.ids[i]
 	w.sz[i] = j
 }
 
 // Connected returns true if two nodes connected, false otherwise.
 func (w *WeightedQuickUnion) Connected(p, q int) bool {
 	return w.root(p) == w.root(q)
+}
+
+// Find ...
+func (w *WeightedQuickUnion) Find(p int) *Node {
+	return w.root(p)
 }

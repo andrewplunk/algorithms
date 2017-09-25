@@ -1,4 +1,4 @@
-package unionfind
+package uf
 
 import (
 	"fmt"
@@ -17,23 +17,12 @@ func graphStr(graph []int, width int) (str string) {
 	return
 }
 
-type ufCons func(int) UF
-
 type expectation func(*testing.T, UF)
 
 func connected(p, q int, expected bool) func(*testing.T, UF) {
 	return func(t *testing.T, impl UF) {
 		if impl.Connected(p, q) != expected {
-			switch x := impl.(type) {
-			case *WeightedQuickUnion:
-				t.Fatalf("Expected UF:%s Connected:%t p:%d q:%d\n ids:%s\n size:%s",
-					impl, expected, p, q,
-					graphStr(x.ids, 5),
-					graphStr(x.sz, len(x.sz)),
-				)
-			default:
-				t.Fatalf("Expected UF:%s Connected:%t p:%d q:%d", impl, expected, p, q)
-			}
+			t.Fatalf("Expected UF:%s Connected:%t p:%d q:%d", impl, expected, p, q)
 		}
 	}
 }
@@ -44,7 +33,6 @@ type test struct {
 }
 
 func TestUF(t *testing.T) {
-
 	table := []test{
 		test{
 			graph: [][]int{
@@ -63,9 +51,9 @@ func TestUF(t *testing.T) {
 		},
 	}
 
-	for _, constructor := range []ufCons{NewWeightedQuickUnion} {
+	for _, constructor := range []interface{}{NewWeightedQuickUnion} {
 		for _, test := range table {
-			impl := constructor(len(test.graph) * len(test.graph[0]))
+			impl := constructor.(func(int) *WeightedQuickUnion)(len(test.graph) * len(test.graph[0]))
 
 			// init UF graph
 			for i := range test.graph {
@@ -77,6 +65,32 @@ func TestUF(t *testing.T) {
 
 			for _, e := range test.expectations {
 				e(t, impl)
+			}
+		}
+	}
+}
+
+func BenchmarkQuickUnionUF(b *testing.B) {
+	impl := NewQuickUnion(b.N)
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < i; j++ {
+			if j < i-1 {
+				p2, q2 := j, j+1
+				impl.Union(p2, q2)
+				impl.Connected(p2, q2)
+			}
+		}
+	}
+}
+
+func BenchmarkWeightedQuickUnionWithPathCompressionUF(b *testing.B) {
+	impl := NewWeightedQuickUnion(b.N)
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < i; j++ {
+			if j < i-1 {
+				p2, q2 := j, j+1
+				impl.Union(p2, q2)
+				impl.Connected(p2, q2)
 			}
 		}
 	}
