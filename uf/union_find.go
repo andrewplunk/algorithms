@@ -13,11 +13,7 @@ package uf
 type UF interface {
 	Union(p, q int)
 	Connected(p, q int) bool
-}
-
-// Finder searches for elements in the graph.
-type Finder interface {
-	Find(int, bool) int
+	Find(int) *Node
 }
 
 func initIDs(n int) []int {
@@ -89,8 +85,15 @@ func (qu *QuickUnion) Connected(p, q int) bool {
 // Node a container to use rather than the typical union-find int id.
 // This lets us store information at each site.
 type Node struct {
-	Root  int
-	Value interface{}
+	Root int
+	// Value switch to interface{} if this needs to be made generic.
+	Value    bool
+	Comparer func(*Node, *Node) bool
+}
+
+// CompareTo ...
+func (n *Node) CompareTo(other *Node) bool {
+	return n.Comparer(n, other)
 }
 
 // WeightedQuickUnion optimizes the union operation.
@@ -103,15 +106,17 @@ type WeightedQuickUnion struct {
 func NewWeightedQuickUnion(n int) *WeightedQuickUnion {
 	ids := make([]*Node, n)
 	sz := make([]int, n)
-	for i := 0; i < n; i++ {
-		ids[i] = &Node{Root: i}
-		sz[i] = 1
-	}
 
-	return &WeightedQuickUnion{
+	wqu := &WeightedQuickUnion{
 		ids: ids,
 		sz:  sz,
 	}
+
+	for i := 0; i < n; i++ {
+		ids[i] = &Node{Root: i, Value: false, Comparer: wqu.defaultComparer}
+		sz[i] = 1
+	}
+	return wqu
 }
 
 func (w *WeightedQuickUnion) root(p int) (n *Node) {
@@ -126,21 +131,25 @@ func (w *WeightedQuickUnion) root(p int) (n *Node) {
 	return
 }
 
+func (w *WeightedQuickUnion) defaultComparer(i, j *Node) bool {
+	return w.sz[i.Root] > w.sz[j.Root]
+}
+
 // Union connect two nodes.
 func (w *WeightedQuickUnion) Union(p, q int) {
-	i := w.root(p).Root
-	j := w.root(q).Root
+	i := w.root(p)
+	j := w.root(q)
 	if i == j {
 		return
 	}
 
-	if w.sz[i] < w.sz[j] {
-		w.ids[i] = w.ids[j]
-		w.sz[j] += w.sz[i]
+	if i.CompareTo(j) {
+		w.ids[j.Root] = w.ids[i.Root]
+		w.sz[i.Root] = j.Root
 		return
 	}
-	w.ids[j] = w.ids[i]
-	w.sz[i] = j
+	w.ids[i.Root] = w.ids[j.Root]
+	w.sz[j.Root] += w.sz[i.Root]
 }
 
 // Connected returns true if two nodes connected, false otherwise.
@@ -151,4 +160,9 @@ func (w *WeightedQuickUnion) Connected(p, q int) bool {
 // Find ...
 func (w *WeightedQuickUnion) Find(p int) *Node {
 	return w.root(p)
+}
+
+// Get ...
+func (w *WeightedQuickUnion) Get(p int) *Node {
+	return w.ids[p]
 }
