@@ -62,6 +62,11 @@ func New(n int) (*Percolator, error) {
 	return p, nil
 }
 
+// Percolates returns true if a site in the bottom row is connected to the top row.
+func (p *Percolator) Percolates() bool {
+	return p.sites.Connected(p.topID, p.bottomID)
+}
+
 // IsFull returns true if the site is open and has a path to the top row.
 func (p *Percolator) IsFull(row, col int) bool {
 	return p.sites.Connected(p.calculateIndex(row, col), p.topID)
@@ -74,6 +79,11 @@ func (p *Percolator) IsOpen(row, col int) bool {
 
 func (p *Percolator) calculateIndex(row, col int) int {
 	return ((p.len - 1) * row) + row + col
+}
+
+// OpenSites returns the number of sites open
+func (p *Percolator) OpenSites() int {
+	return p.openSites
 }
 
 // Open requires 0 based indexing.
