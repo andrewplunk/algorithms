@@ -33,43 +33,56 @@ func New(n int) (*Percolator, error) {
 		return nil, fmt.Errorf("This percolator is meant to operate on square matrixes and %d does not have a perfect square.", n)
 	}
 
-	// Add an additional 2 slots at the end of the slice to store references to the top and bottom rows.
-	sites := uf.NewWeightedQuickUnion(n + 2)
+	topID := n
+	bottomID := n + 1
 
-	topID := n - 2
-	bottomID := n - 3
-	// Connect the top and bottom rows.
-	for i := 0; i < size; i++ {
-		sites.Union(topID, i)
-		sites.Union(bottomID, n-4+i)
-	}
-
-	cmp := func(i, j *uf.Node) bool {
+	cmp := func(w *uf.WeightedQuickUnion, i, j *uf.Node) bool {
 		// topID is always the root.
 		if i.Root == topID {
 			return true
 		}
 
-		if j.Root == bottomID && i.Root != topID {
+		if i.Root == bottomID && j.Root != topID {
 			return true
 		}
 
-		return false
+		return w.Get(i.Root).Size > w.Get(j.Root).Size
 	}
 
-	sites.Get(topID).Comparer = cmp
-	sites.Get(bottomID).Comparer = cmp
-	return &Percolator{sites, 1, n, size, topID, bottomID}, nil
+	// Add an additional 2 slots at the end of the slice to store references to the top and bottom rows.
+	sites := uf.NewWeightedQuickUnion(n+2, uf.Comparer(cmp))
+
+	p := &Percolator{sites, 0, n, size, topID, bottomID}
+	// Connect the top and bottom rows.
+	for i := 0; i < size; i++ {
+		sites.Union(topID, i)
+		sites.Union(bottomID, p.calculateIndex(size-1, i))
+	}
+
+	return p, nil
+}
+
+// IsFull returns true if the site is open and has a path to the top row.
+func (p *Percolator) IsFull(row, col int) bool {
+	return p.sites.Connected(p.calculateIndex(row, col), p.topID)
+}
+
+// IsOpen returns true if the site is open.
+func (p *Percolator) IsOpen(row, col int) bool {
+	return p.sites.Get(p.calculateIndex(row, col)).Value
+}
+
+func (p *Percolator) calculateIndex(row, col int) int {
+	return ((p.len - 1) * row) + row + col
 }
 
 // Open requires 0 based indexing.
 func (p *Percolator) Open(row, col int) error {
-	if (row+1)*(col+1) > p.n {
+	if row > p.len || col > p.len {
 		return fmt.Errorf("row:%d col:%d out of bounds for a matrix of size:%d", row, col, p.n)
 	}
 
-	base := p.len * col
-	target := base + row + col
+	target := p.calculateIndex(row, col)
 	targetNode := p.sites.Get(target)
 
 	// Don't open already opened sites.
@@ -77,24 +90,24 @@ func (p *Percolator) Open(row, col int) error {
 		p.openSites++
 		targetNode.Value = true
 
-		if row != 0 {
-			leftNeighbor := base + (row - 1) + col
-			p.connect(target, leftNeighbor)
-		}
-
-		if row < (p.len - 1) {
-			rightNeighbor := base + (row + 1) + col
-			p.connect(target, rightNeighbor)
-		}
-
 		if col != 0 {
-			topNeighbor := base + row + (col - 1)
-			p.connect(target, topNeighbor)
+			// left
+			p.connect(target, p.calculateIndex(row, col-1))
 		}
 
 		if col < (p.len - 1) {
-			bottomNeighbor := base + row + (col + 1)
-			p.connect(target, bottomNeighbor)
+			// right
+			p.connect(target, p.calculateIndex(row, col+1))
+		}
+
+		if row != 0 {
+			// up
+			p.connect(target, p.calculateIndex(row-1, col))
+		}
+
+		if row < (p.len - 1) {
+			// down
+			p.connect(target, p.calculateIndex(row+1, col))
 		}
 	}
 

@@ -82,41 +82,39 @@ func (qu *QuickUnion) Connected(p, q int) bool {
 	return qu.root(p) == qu.root(q)
 }
 
+type Comparer func(*WeightedQuickUnion, *Node, *Node) bool
+
 // Node a container to use rather than the typical union-find int id.
 // This lets us store information at each site.
 type Node struct {
 	Root int
 	// Value switch to interface{} if this needs to be made generic.
-	Value    bool
-	Comparer func(*Node, *Node) bool
-}
-
-// CompareTo ...
-func (n *Node) CompareTo(other *Node) bool {
-	return n.Comparer(n, other)
+	Value bool
+	Size  int
 }
 
 // WeightedQuickUnion optimizes the union operation.
 type WeightedQuickUnion struct {
-	ids []*Node
-	sz  []int
+	ids      []*Node
+	comparer Comparer
 }
 
 // NewWeightedQuickUnion using an array model p and q being connected if they have the same id.
-func NewWeightedQuickUnion(n int) *WeightedQuickUnion {
+func NewWeightedQuickUnion(n int, comparer Comparer) *WeightedQuickUnion {
 	ids := make([]*Node, n)
-	sz := make([]int, n)
-
-	wqu := &WeightedQuickUnion{
-		ids: ids,
-		sz:  sz,
+	if comparer == nil {
+		comparer = func(w *WeightedQuickUnion, i, j *Node) bool {
+			return i.Size > j.Size
+		}
 	}
 
 	for i := 0; i < n; i++ {
-		ids[i] = &Node{Root: i, Value: false, Comparer: wqu.defaultComparer}
-		sz[i] = 1
+		ids[i] = &Node{
+			Root:  i,
+			Value: false, Size: 1,
+		}
 	}
-	return wqu
+	return &WeightedQuickUnion{ids: ids, comparer: comparer}
 }
 
 func (w *WeightedQuickUnion) root(p int) (n *Node) {
@@ -131,10 +129,6 @@ func (w *WeightedQuickUnion) root(p int) (n *Node) {
 	return
 }
 
-func (w *WeightedQuickUnion) defaultComparer(i, j *Node) bool {
-	return w.sz[i.Root] > w.sz[j.Root]
-}
-
 // Union connect two nodes.
 func (w *WeightedQuickUnion) Union(p, q int) {
 	i := w.root(p)
@@ -143,18 +137,22 @@ func (w *WeightedQuickUnion) Union(p, q int) {
 		return
 	}
 
-	if i.CompareTo(j) {
+	if w.comparer(w, i, j) {
+		jSize := w.ids[j.Root].Size
 		w.ids[j.Root] = w.ids[i.Root]
-		w.sz[i.Root] = j.Root
+		w.ids[i.Root].Size += jSize
 		return
 	}
+	iSize := w.ids[i.Root].Size
 	w.ids[i.Root] = w.ids[j.Root]
-	w.sz[j.Root] += w.sz[i.Root]
+	w.ids[j.Root].Size += iSize
 }
 
 // Connected returns true if two nodes connected, false otherwise.
 func (w *WeightedQuickUnion) Connected(p, q int) bool {
-	return w.root(p) == w.root(q)
+	pr := w.root(p)
+	qr := w.root(q)
+	return pr == qr
 }
 
 // Find ...
