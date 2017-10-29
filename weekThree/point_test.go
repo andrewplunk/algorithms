@@ -26,6 +26,15 @@ func expectCompare(i, j int, expected bool) test {
 	}
 }
 
+func expectSlopeOrder(i, j, k, expected int) test {
+	return func(t *testing.T, p points) {
+		actual := p.slopeOrder(i)(j, k)
+		if actual != expected {
+			t.Fatalf("Expected %d != Actual %d", expected, actual)
+		}
+	}
+}
+
 func TestPoints(t *testing.T) {
 	points := points{
 		point{0, 0},
@@ -50,6 +59,12 @@ func TestPoints(t *testing.T) {
 		expectSlope(0, 1, 0),
 		// normal slope
 		expectSlope(0, 2, float64(1)),
+		// 0 - 0 / -1 - 0 == 0
+		// 10 - 0 / 10 - 0 == 1
+		expectSlopeOrder(0, 1, 2, -1),
+		expectSlopeOrder(1, 2, 0, 1),
+		expectSlopeOrder(1, 0, 0, 0),
+		expectSlopeOrder(0, 0, 0, 0),
 	}
 
 	for _, test := range tests {
